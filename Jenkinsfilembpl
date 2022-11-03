@@ -9,10 +9,7 @@ options {
   buildDiscarder logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '5', numToKeepStr: '5')
   timestamps()
 }
-triggers {
-  //pollSCM '* * * * *'
-    //cron '* * * * *'
-}
+
 
 
 stages{
