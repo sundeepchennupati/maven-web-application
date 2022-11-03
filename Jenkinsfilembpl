@@ -1,0 +1,84 @@
+pipeline{
+
+agent any
+
+tools{
+maven "maven3.8.6"
+}
+options {
+  buildDiscarder logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '5', numToKeepStr: '5')
+  timestamps()
+  cleanWS()
+}
+triggers {
+  //pollSCM '* * * * *'
+    cron '* * * * *'
+}
+
+
+stages{
+stage('CheckOutCode'){
+steps{
+    sendslacknotifications("STARTED")
+git credentialsId: '2f27d94f-f61a-49fd-b5b1-78079f25ca08', url: 'https://github.com/Sun-Prod/maven-web-application.git'
+}
+}
+stage('Build'){
+steps{
+sh "mvn clean package"
+}}
+
+stage('ExecuteSonarQubeReport'){
+steps{
+	  sh "mvn sonar:sonar"
+}}
+
+stage('DeployApplicationIntoTomcatServer'){
+steps{
+	 sshagent(['d72691a6-6c2a-4d41-ba61-05b7b9ff768c']) {
+	   sh "scp -o StrictHostKeyChecking=no target/maven-web-application.war ec2-user@172.31.92.95:/opt/apache-tomcat-9.0.68/webapps"
+}
+    
+}
+}
+}//stages closing
+post {
+  aborted {
+    // One or more steps need to be included within each condition's block.
+  sendslacknotifications(currentBuild.result)
+	}
+  success {
+    // One or more steps need to be included within each condition's block.
+  sendslacknotifications(currentBuild.result)
+	}
+  failure {
+    // One or more steps need to be included within each condition's block.
+  sendslacknotifications(currentBuild.result)
+	}
+}
+}//pipeline closing
+def sendslacknotifications(String buildStatus = 'STARTED') {
+  // build status of null means successful
+  buildStatus =  buildStatus ?: 'SUCCESS'
+
+  // Default values
+  def colorName = 'RED'
+  def colorCode = '#FF0000'
+  def subject = "${buildStatus}: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'"
+  def summary = "${subject} (${env.BUILD_URL})"
+
+  // Override default values based on build status
+  if (buildStatus == 'STARTED') {
+    color = 'YELLOW'
+    colorCode = '#FFFF00'
+  } else if (buildStatus == 'SUCCESS') {
+    color = 'GREEN'
+    colorCode = '#00FF00'
+  } else {
+    color = 'RED'
+    colorCode = '#FF0000'
+  }
+
+  // Send notifications
+  slackSend (color: colorCode, message: summary, channel: "jenkins")
+}
